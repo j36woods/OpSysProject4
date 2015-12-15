@@ -13,9 +13,6 @@ public class Server {
 	private static int n_blocks = 128;
 	private static int blocksize = 4096;
 	private static Memory mem;
-	private static DataInputStream fromClient;
-	private static DataOutputStream toClient;
-	
 	
 	private static int isPositiveInteger(String s) {
 		int num;
@@ -30,7 +27,7 @@ public class Server {
 		return num;
 	}
 	
-	private static void store(String filename, byte[] file_contents) throws IOException {
+	private synchronized static void store(String filename, byte[] file_contents, DataOutputStream toClient) throws IOException {
 		
 		//Check to see if the file already exists
 		if (mem.containsFile(filename)) {
@@ -89,7 +86,7 @@ public class Server {
 		}
 	}
 	
-	private static void read(String filename, int byte_offset, int length) throws IOException {
+	private synchronized static void read(String filename, int byte_offset, int length, DataOutputStream toClient) throws IOException {
 		
 		try {
 			FileInputStream file = new FileInputStream(".storage/" + filename);
@@ -139,7 +136,7 @@ public class Server {
 		
 	}
 	
-	private static void delete(String filename) throws IOException {
+	private synchronized static void delete(String filename, DataOutputStream toClient) throws IOException {
 		if (filename == "*") {
 			return;
 		}
@@ -160,7 +157,7 @@ public class Server {
 		}
 	}
 	
-	private static void dir() throws IOException {
+	private synchronized static void dir(DataOutputStream toClient) throws IOException {
 		SortedSet<String> set = mem.getFiles();
 		String dir = new String(set.size() + "\n");
 		Iterator<String> itr = set.iterator();
@@ -170,28 +167,170 @@ public class Server {
 		toClient.write(dir.getBytes());
 		System.out.println("Sent: " + dir);
 	}
+	class SocketRunnable implements Runnable {
+		protected Socket socket = null;
 	
+		private DataInputStream fromClient;
+		private DataOutputStream toClient;
 	
+		public SocketRunnable(Socket clientSocket){
+			this.socket = clientSocket;
+		}
+
+		public void run() {
+			try{
+				fromClient = new DataInputStream(new BufferedInputStream(socket.getInputStream()));			
+				toClient = new DataOutputStream(socket.getOutputStream());
+				
+				
+				
+				boolean client_terminated = false;
+				while (!client_terminated) {
+					byte[] b = new byte[n_blocks * blocksize];
+					int bytes_read = fromClient.read(b);	
+					
+					if (bytes_read == -1) {
+						System.out.println("Client closed its socket....terminating");
+						break;
+					}
+					
+					String line = new String(b, "UTF-8");	
+					String argument_line = line.trim();
+					String data_line = "";
+					for (int i = 0; i < argument_line.length(); i++) {
+						if (argument_line.charAt(i) == '\n') {
+							argument_line = argument_line.substring(0, i);
+							data_line = line.substring(i+1);
+							data_line = data_line.trim();
+							break;
+						}
+					}				
+					
+					if (argument_line.equals("")) {
+						continue;
+					}
+					
+					System.out.println("Rcvd: " + argument_line);
+					String[] arguments = argument_line.split(" ");
+					String instruction = arguments[0];
+							
+					if (instruction.equals("STORE")) {
+						if (arguments.length != 3) {
+							byte[] store_error = new String("ERROR: STORE command must be in the form 'STORE <filename> <bytes>'\n").getBytes();
+							toClient.write(store_error);
+							System.out.println("Sent: ERROR: STORE command must be in the form 'STORE <filename> <bytes>'");
+						} else {
+							String filename = arguments[1];
+							int num_bytes = isPositiveInteger(arguments[2]);
+							if (num_bytes == -1) {
+								byte[] int_error = new String("ERROR: The <bytes> argument must be a positive integer\n").getBytes();
+								toClient.write(int_error);
+								System.out.println("Sent: ERROR: The <bytes> argument must be a positive integer");
+							} else {
+								byte[] file_contents = new byte[num_bytes];
+								int current_num_bytes = 0;
+								if (data_line.isEmpty()) {
+									while(current_num_bytes < num_bytes) {
+										//System.out.println("current_num_bytes = " + current_num_bytes);
+										int tmp = fromClient.read(file_contents, current_num_bytes, num_bytes-current_num_bytes);
+										if (tmp == -1) {
+											System.out.println("Client closed its socket....terminating");
+											client_terminated = true;
+											break;
+										}
+										//System.out.println("tmp = " + tmp);
+										current_num_bytes += tmp;
+									}
+								} else {
+									file_contents = data_line.getBytes();
+								}
+								
+								if (!client_terminated) {
+									store(filename, file_contents, toClient);
+								}
+							}
+							
+						}
+						continue;
+						
+						
+					} else if (instruction.equals("READ")) {
+						if (arguments.length != 4) {
+							byte[] read_error = new String("ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'\n").getBytes();
+							toClient.write(read_error);
+							System.out.println("Sent: ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'");
+						} else {
+							String filename = arguments[1];
+							int byte_offset = isPositiveInteger(arguments[2]);
+							int length = isPositiveInteger(arguments[3]);
+							if (byte_offset < 0 || length < 0) {
+								byte[] read_length_error = new String("ERROR: Byte-offset and length need to be positive integers\n").getBytes();
+								toClient.write(read_length_error);
+								System.out.println("Sent: ERROR: Byte-offset and length need to be positive integers");
+							} else {
+								read(filename, byte_offset, length, toClient);
+							}
+							
+						}
+						
+						
+						
+					} else if (instruction.equals("DELETE")) {
+						if (arguments.length != 2) {
+							byte[] delete_error = new String("ERROR: DELETE command must be in the form 'DELETE <filename>'\n").getBytes();
+							toClient.write(delete_error);
+							System.out.println("Sent: ERROR: DELETE command must be in the form 'DELETE <filename>'");
+						} else {
+							String filename = arguments[1];
+							delete(filename, toClient);
+						}
+						
+						
+						
+					} else if (instruction.equals("DIR")) {
+						if (arguments.length != 1) {
+							byte[] dir_error = new String("ERROR: DIR command must be in the form 'DIR'\n").getBytes();
+							toClient.write(dir_error);
+							System.out.println("Sent: ERROR: DIR command must be in the form 'DIR'");
+						} else {
+							dir(toClient);
+						}
+						
+						
+						
+					} else {
+						byte[] invalid_first_arg_error = new String("ERROR: First argument must be STORE, READ, DELETE, or DIR\n").getBytes();
+						toClient.write(invalid_first_arg_error);
+						System.out.println("Sent: ERROR: First argument must be STORE, READ, DELETE, or DIR");
+					}
+					
+				}
+						
+			} catch (IOException e) {		
+				System.out.println("ERROR: Could not write back to client");
+			} finally {
+				try {
+					fromClient.close();
+					toClient.close();
+				} catch (IOException e) {
+					System.out.println("ERROR: Could not close connection to client");
+				}
+			}
+
+		}	
+	}
 	
 	public static void main(String[] args) {
-		
+		Server server = new Server();
+		server.start();
+	}
+	public void start(){		
 		System.out.println("Block size is " + blocksize);
 		System.out.println("Number of blocks is " + n_blocks);
 		
 		mem = new Memory(n_blocks, blocksize);
 		mem.printMemory();
-		
-		try {
-		
-			ServerSocket serverSocket = new ServerSocket(listener_port);
-			System.out.println("Listening on port " + listener_port);
-			
-			Socket socket = serverSocket.accept();
-			System.out.println("Received incoming connection from " + socket.getInetAddress().getHostName());
-			
-			fromClient = new DataInputStream(new BufferedInputStream(socket.getInputStream()));			
-			toClient = new DataOutputStream(socket.getOutputStream());
-			
+		try{
 			File storage_dir;
 			Path storage_path = Paths.get(".storage");
 			if (Files.exists(storage_path)) {
@@ -203,145 +342,28 @@ public class Server {
 				}
 				Files.delete(storage_path);
 			}
-			storage_dir = new File(".storage");
-			storage_dir.mkdir();
-			
-			
-			boolean client_terminated = false;
-			while (!client_terminated) {
-
-				byte[] b = new byte[n_blocks * blocksize];
-				int bytes_read = fromClient.read(b);	
-				
-				if (bytes_read == -1) {
-					System.out.println("Client closed its socket....terminating");
-					break;
+		
+		storage_dir = new File(".storage");
+		storage_dir.mkdir();
+		}catch(IOException e){
+			System.out.println("Filesystem Unavailable");
+			return;
+		}	ServerSocket serverSocket = null;
+		try{	
+			serverSocket = new ServerSocket(listener_port);
+		}catch(IOException e){
+			return;
+		}
+		while(true){
+				Socket socket = null;
+				System.out.println("Listening on port " + listener_port);
+				try{
+					socket = serverSocket.accept();
+					System.out.println("Received incoming connection from " + socket.getInetAddress().getHostName());
+					new Thread(new SocketRunnable(socket)).start();	
+				}catch(IOException e){
+					e.printStackTrace();
 				}
-				
-				String line = new String(b, "UTF-8");	
-				String argument_line = line.trim();
-				String data_line = "";
-				for (int i = 0; i < argument_line.length(); i++) {
-					if (argument_line.charAt(i) == '\n') {
-						argument_line = argument_line.substring(0, i);
-						data_line = line.substring(i+1);
-						data_line = data_line.trim();
-						break;
-					}
-				}				
-				
-				if (argument_line.equals("")) {
-					continue;
-				}
-				
-				System.out.println("Rcvd: " + argument_line);
-				String[] arguments = argument_line.split(" ");
-				String instruction = arguments[0];
-						
-				if (instruction.equals("STORE")) {
-					if (arguments.length != 3) {
-						byte[] store_error = new String("ERROR: STORE command must be in the form 'STORE <filename> <bytes>'\n").getBytes();
-						toClient.write(store_error);
-						System.out.println("Sent: ERROR: STORE command must be in the form 'STORE <filename> <bytes>'");
-					} else {
-						String filename = arguments[1];
-						int num_bytes = isPositiveInteger(arguments[2]);
-						if (num_bytes == -1) {
-							byte[] int_error = new String("ERROR: The <bytes> argument must be a positive integer\n").getBytes();
-							toClient.write(int_error);
-							System.out.println("Sent: ERROR: The <bytes> argument must be a positive integer");
-						} else {
-							byte[] file_contents = new byte[num_bytes];
-							int current_num_bytes = 0;
-							if (data_line.isEmpty()) {
-								while(current_num_bytes < num_bytes) {
-									//System.out.println("current_num_bytes = " + current_num_bytes);
-									int tmp = fromClient.read(file_contents, current_num_bytes, num_bytes-current_num_bytes);
-									if (tmp == -1) {
-										System.out.println("Client closed its socket....terminating");
-										client_terminated = true;
-										break;
-									}
-									//System.out.println("tmp = " + tmp);
-									current_num_bytes += tmp;
-								}
-							} else {
-								file_contents = data_line.getBytes();
-							}
-							
-							if (!client_terminated) {
-								store(filename, file_contents);
-							}
-						}
-						
-					}
-					continue;
-					
-					
-				} else if (instruction.equals("READ")) {
-					if (arguments.length != 4) {
-						byte[] read_error = new String("ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'\n").getBytes();
-						toClient.write(read_error);
-						System.out.println("Sent: ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'");
-					} else {
-						String filename = arguments[1];
-						int byte_offset = isPositiveInteger(arguments[2]);
-						int length = isPositiveInteger(arguments[3]);
-						if (byte_offset < 0 || length < 0) {
-							byte[] read_length_error = new String("ERROR: Byte-offset and length need to be positive integers\n").getBytes();
-							toClient.write(read_length_error);
-							System.out.println("Sent: ERROR: Byte-offset and length need to be positive integers");
-						} else {
-							read(filename, byte_offset, length);
-						}
-						
-					}
-					
-					
-					
-				} else if (instruction.equals("DELETE")) {
-					if (arguments.length != 2) {
-						byte[] delete_error = new String("ERROR: DELETE command must be in the form 'DELETE <filename>'\n").getBytes();
-						toClient.write(delete_error);
-						System.out.println("Sent: ERROR: DELETE command must be in the form 'DELETE <filename>'");
-					} else {
-						String filename = arguments[1];
-						delete(filename);
-					}
-					
-					
-					
-				} else if (instruction.equals("DIR")) {
-					if (arguments.length != 1) {
-						byte[] dir_error = new String("ERROR: DIR command must be in the form 'DIR'\n").getBytes();
-						toClient.write(dir_error);
-						System.out.println("Sent: ERROR: DIR command must be in the form 'DIR'");
-					} else {
-						dir();
-					}
-					
-					
-					
-				} else {
-					byte[] invalid_first_arg_error = new String("ERROR: First argument must be STORE, READ, DELETE, or DIR\n").getBytes();
-					toClient.write(invalid_first_arg_error);
-					System.out.println("Sent: ERROR: First argument must be STORE, READ, DELETE, or DIR");
-				}
-				
-			}
-			
-			serverSocket.close();
-			
-		} catch (IOException e) {
-			System.out.println("ERROR: Could not write back to client");
-		} finally {
-			try {
-				fromClient.close();
-				toClient.close();
-			} catch (IOException e) {
-				System.out.println("ERROR: Could not close connection to client");
-			}
-			
 		}
 	}
 }
