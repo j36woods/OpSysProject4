@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.TreeSet;
 
@@ -7,8 +8,7 @@ public class Memory {
 	private int blocksize;
 	private int num_available_blocks;
 	private HashMap<String, Character> files;
-	private char[] file_chars;
-	private int file_char_index;
+	private ArrayList<Character> file_chars;
 	private ArrayList<Character> memory;
 	
 	public Memory(int n_blocks_, int blocksize_) {
@@ -16,8 +16,7 @@ public class Memory {
 		blocksize = blocksize_;
 		num_available_blocks = n_blocks;
 		files = new HashMap<String, Character>();
-		file_chars = new char[]{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
-		file_char_index = 0;
+		file_chars = new ArrayList<>(Arrays.asList('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'));
 		memory = new ArrayList<Character>();
 		for (int i = 0; i < n_blocks; i++) {
 			memory.add('.');
@@ -55,7 +54,9 @@ public class Memory {
 		return files.get(filename);
 	}
 	
-	public int addFile(String filename, int blocks_required) {		
+	public int addFile(String filename, int blocks_required) {	
+		char file_char = file_chars.get(0);
+		file_chars.remove(0);
 		int i = 0;
 		int num_clusters = 0;
 		boolean new_cluster = true;
@@ -65,7 +66,7 @@ public class Memory {
 					num_clusters++;
 					new_cluster = false;
 				}
-				memory.set(i, file_chars[file_char_index]);
+				memory.set(i, file_char);
 				blocks_required--;
 				num_available_blocks--;
 			} else {
@@ -74,8 +75,7 @@ public class Memory {
 			i++;
 		}
 		
-		files.put(filename, file_chars[file_char_index]);
-		file_char_index++;
+		files.put(filename, file_char);
 		
 		return num_clusters;
 	}
@@ -90,6 +90,8 @@ public class Memory {
 				num_available_blocks++;
 			}
 		}
+		file_chars.add(file);
+		files.remove(filename);
 		return deallocated_blocks;
 	}
 	
