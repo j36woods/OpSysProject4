@@ -108,10 +108,10 @@ public class Server {
 				toClient.write(range_error);
 				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: INVALID BYTE RANGE");
 			} else {
-				byte[] ack = new String("ACK " + bytes_read + "\n").getBytes();
+				byte[] ack = new String("ACK " + length + "\n").getBytes();
 				toClient.write(ack);
 				toClient.write(buffer, byte_offset, length);
-				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ACK " + bytes_read);
+				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ACK " + length);
 				int num_blocks_read = mem.readFile(byte_offset, bytes_read);
 				System.out.print("[thread " +Thread.currentThread().getId() + "] Sent " + bytes_read + " bytes (from " + num_blocks_read + " '" + mem.getFileChar(filename));
 				if (num_blocks_read > 1) {
