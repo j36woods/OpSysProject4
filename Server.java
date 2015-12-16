@@ -33,7 +33,7 @@ public class Server {
 		if (mem.containsFile(filename)) {
 			byte[] file_exists_error = new String("ERROR: FILE EXISTS\n").getBytes();
 			toClient.write(file_exists_error);
-			System.out.println("Sent: ERROR: FILE EXISTS");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: FILE EXISTS");
 			return;
 		}
 		
@@ -42,7 +42,7 @@ public class Server {
 		if (!mem.hasSpace(num_blocks)) {
 			byte[] no_memory_error = new String("ERROR: NOT ENOUGH MEMORY AVAILABE\n").getBytes();
 			toClient.write(no_memory_error);
-			System.out.println("Sent: ERROR: NOT ENOUGH MEMORY AVAILABE");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: NOT ENOUGH MEMORY AVAILABE");
 			return;
 		}
 		
@@ -56,7 +56,7 @@ public class Server {
 			int num_clusters = mem.addFile(filename, num_blocks);
 			
 			//Output what was stored
-			System.out.print("Stored file '" + mem.getFileChar(filename) + "' (" + file_contents.length + " bytes; ");
+			System.out.print("[thread " +Thread.currentThread().getId() + "] Stored file '" + mem.getFileChar(filename) + "' (" + file_contents.length + " bytes; ");
 			if (num_blocks > 1) {
 				System.out.print(num_blocks + " blocks; ");
 			} else {
@@ -78,11 +78,11 @@ public class Server {
 		} catch (FileNotFoundException e) {
 			byte[] file_create_error = new String("ERROR: COULD NOT CREATE FILE '" + filename + "'\n").getBytes();
 			toClient.write(file_create_error);
-			System.out.println("Sent: ERROR: COULD NOT CREATE FILE '" + filename + "'");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: COULD NOT CREATE FILE '" + filename + "'");
 		} catch (IOException e) {
 			byte[] file_write_error = new String("ERROR: COULD NOT WRITE TO FILE '" + filename + "'\n").getBytes();
 			toClient.write(file_write_error);
-			System.out.println("Sent: ERROR: COULD NOT WRITE TO FILE '" + filename + "'");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: COULD NOT WRITE TO FILE '" + filename + "'");
 		}
 	}
 	
@@ -94,7 +94,7 @@ public class Server {
 			if (byte_offset+length > file_size) {
 				byte[] range_error = new String("ERROR: INVALID BYTE RANGE\n").getBytes();
 				toClient.write(range_error);
-				System.out.println("Sent: ERROR: INVALID BYTE RANGE");
+				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: INVALID BYTE RANGE");
 				file.close();
 				return;
 			}
@@ -106,14 +106,14 @@ public class Server {
 			if (bytes_read == -1) {
 				byte[] range_error = new String("ERROR: INVALID BYTE RANGE\n").getBytes();
 				toClient.write(range_error);
-				System.out.println("Sent: ERROR: INVALID BYTE RANGE");
+				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: INVALID BYTE RANGE");
 			} else {
 				byte[] ack = new String("ACK " + bytes_read + "\n").getBytes();
 				toClient.write(ack);
 				toClient.write(buffer, byte_offset, length);
-				System.out.println("Sent: ACK " + bytes_read);
+				System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ACK " + bytes_read);
 				int num_blocks_read = mem.readFile(byte_offset, bytes_read);
-				System.out.print("Sent " + bytes_read + " bytes (from " + num_blocks_read + " '" + mem.getFileChar(filename));
+				System.out.print("[thread " +Thread.currentThread().getId() + "] Sent " + bytes_read + " bytes (from " + num_blocks_read + " '" + mem.getFileChar(filename));
 				if (num_blocks_read > 1) {
 					System.out.print("' blocks) from offset " + byte_offset + "\n");
 				} else {
@@ -126,11 +126,11 @@ public class Server {
 		} catch (FileNotFoundException e) {
 			byte[] no_file_error = new String("ERROR: NO SUCH FILE\n").getBytes();
 			toClient.write(no_file_error);
-			System.out.println("Sent: ERROR: NO SUCH FILE");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: NO SUCH FILE");
 		} catch (IOException e) {
 			byte[] read_file_error = new String("ERROR: COULD NOT READ FROM FILE '" + filename + "'\n").getBytes();
 			toClient.write(read_file_error);
-			System.out.println("Sent: ERROR: COULD NOT READ FROM FILE '" + filename + "'");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: COULD NOT READ FROM FILE '" + filename + "'");
 		}
 		
 		
@@ -145,15 +145,15 @@ public class Server {
 			Files.delete(path);
 			Character file_char = mem.getFileChar(filename);
 			int deallocated_blocks = mem.removeFile(filename);
-			System.out.println("Deleted " + filename + " file '" + file_char + "' (deallocated " + deallocated_blocks + " blocks)");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Deleted " + filename + " file '" + file_char + "' (deallocated " + deallocated_blocks + " blocks)");
 			mem.printMemory();
 			byte[] ack = new String("ACK\n").getBytes();
 			toClient.write(ack);
-			System.out.println("Sent: ACK");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ACK");
 		} catch (IOException e) {
 			byte[] file_error = new String("ERROR: NO SUCH FILE\n").getBytes();
 			toClient.write(file_error);
-			System.out.println("Sent: ERROR: NO SUCH FILE");
+			System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: NO SUCH FILE");
 		}
 	}
 	
@@ -165,7 +165,7 @@ public class Server {
 			dir += itr.next() + "\n";
 		}
 		toClient.write(dir.getBytes());
-		System.out.println("Sent: " + dir);
+		System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: " + dir);
 	}
 	class SocketRunnable implements Runnable {
 		protected Socket socket = null;
@@ -190,7 +190,7 @@ public class Server {
 					int bytes_read = fromClient.read(b);	
 					
 					if (bytes_read == -1) {
-						System.out.println("Client closed its socket....terminating");
+						System.out.println("[thread " +Thread.currentThread().getId() + "] Client closed its socket....terminating");
 						break;
 					}
 					
@@ -210,7 +210,7 @@ public class Server {
 						continue;
 					}
 					
-					System.out.println("Rcvd: " + argument_line);
+					System.out.println("[thread " +Thread.currentThread().getId() + "] Rcvd: " + argument_line);
 					String[] arguments = argument_line.split(" ");
 					String instruction = arguments[0];
 							
@@ -218,14 +218,14 @@ public class Server {
 						if (arguments.length != 3) {
 							byte[] store_error = new String("ERROR: STORE command must be in the form 'STORE <filename> <bytes>'\n").getBytes();
 							toClient.write(store_error);
-							System.out.println("Sent: ERROR: STORE command must be in the form 'STORE <filename> <bytes>'");
+							System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: STORE command must be in the form 'STORE <filename> <bytes>'");
 						} else {
 							String filename = arguments[1];
 							int num_bytes = isPositiveInteger(arguments[2]);
 							if (num_bytes == -1) {
 								byte[] int_error = new String("ERROR: The <bytes> argument must be a positive integer\n").getBytes();
 								toClient.write(int_error);
-								System.out.println("Sent: ERROR: The <bytes> argument must be a positive integer");
+								System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: The <bytes> argument must be a positive integer");
 							} else {
 								byte[] file_contents = new byte[num_bytes];
 								int current_num_bytes = 0;
@@ -234,7 +234,7 @@ public class Server {
 										//System.out.println("current_num_bytes = " + current_num_bytes);
 										int tmp = fromClient.read(file_contents, current_num_bytes, num_bytes-current_num_bytes);
 										if (tmp == -1) {
-											System.out.println("Client closed its socket....terminating");
+											System.out.println("[thread " +Thread.currentThread().getId() + "] Client closed its socket....terminating");
 											client_terminated = true;
 											break;
 										}
@@ -258,7 +258,7 @@ public class Server {
 						if (arguments.length != 4) {
 							byte[] read_error = new String("ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'\n").getBytes();
 							toClient.write(read_error);
-							System.out.println("Sent: ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'");
+							System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: READ command must be in the form 'READ <filename> <byte_offset> <length>'");
 						} else {
 							String filename = arguments[1];
 							int byte_offset = isPositiveInteger(arguments[2]);
@@ -266,7 +266,7 @@ public class Server {
 							if (byte_offset < 0 || length < 0) {
 								byte[] read_length_error = new String("ERROR: Byte-offset and length need to be positive integers\n").getBytes();
 								toClient.write(read_length_error);
-								System.out.println("Sent: ERROR: Byte-offset and length need to be positive integers");
+								System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: Byte-offset and length need to be positive integers");
 							} else {
 								read(filename, byte_offset, length, toClient);
 							}
@@ -279,7 +279,7 @@ public class Server {
 						if (arguments.length != 2) {
 							byte[] delete_error = new String("ERROR: DELETE command must be in the form 'DELETE <filename>'\n").getBytes();
 							toClient.write(delete_error);
-							System.out.println("Sent: ERROR: DELETE command must be in the form 'DELETE <filename>'");
+							System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: DELETE command must be in the form 'DELETE <filename>'");
 						} else {
 							String filename = arguments[1];
 							delete(filename, toClient);
@@ -291,7 +291,7 @@ public class Server {
 						if (arguments.length != 1) {
 							byte[] dir_error = new String("ERROR: DIR command must be in the form 'DIR'\n").getBytes();
 							toClient.write(dir_error);
-							System.out.println("Sent: ERROR: DIR command must be in the form 'DIR'");
+							System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: DIR command must be in the form 'DIR'");
 						} else {
 							dir(toClient);
 						}
@@ -301,7 +301,7 @@ public class Server {
 					} else {
 						byte[] invalid_first_arg_error = new String("ERROR: First argument must be STORE, READ, DELETE, or DIR\n").getBytes();
 						toClient.write(invalid_first_arg_error);
-						System.out.println("Sent: ERROR: First argument must be STORE, READ, DELETE, or DIR");
+						System.out.println("[thread " +Thread.currentThread().getId() + "] Sent: ERROR: First argument must be STORE, READ, DELETE, or DIR");
 					}
 					
 				}
@@ -313,7 +313,7 @@ public class Server {
 					fromClient.close();
 					toClient.close();
 				} catch (IOException e) {
-					System.out.println("ERROR: Could not close connection to client");
+					System.out.println("[thread " +Thread.currentThread().getId() + "] ERROR: Could not close connection to client");
 				}
 			}
 
@@ -354,9 +354,9 @@ public class Server {
 		}catch(IOException e){
 			return;
 		}
+		System.out.println("Listening on port " + listener_port);
 		while(true){
 				Socket socket = null;
-				System.out.println("Listening on port " + listener_port);
 				try{
 					socket = serverSocket.accept();
 					System.out.println("Received incoming connection from " + socket.getInetAddress().getHostName());
